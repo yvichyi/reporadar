@@ -171,7 +171,7 @@ class TestReport(unittest.TestCase):
         for header in ("REPO", "BRANCH", "STATUS", "SYNC", "LAST COMMIT", "STASH"):
             self.assertIn(header, text)
         self.assertIn("3 changes", text)
-        self.assertIn("repos", text)
+        self.assertIn("1 repo", text)  # summary line (singular for a single repo)
 
     def test_render_empty_conflict_wording(self) -> None:
         repo = RepoStatus(path=Path("/tmp/c"), conflicted=2)
