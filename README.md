@@ -29,7 +29,7 @@ data-pipeline  main        ✓ clean      no upstream  2y ago       —
 ```bash
 pip install reporadar        # once published
 # or straight from git:
-pip install git+https://github.com/your-name/reporadar
+pip install git+https://github.com/yvichyi/reporadar
 ```
 
 Requires Python 3.10+ and `git` on your PATH. No other dependencies — pure standard library.
@@ -85,7 +85,7 @@ Repos are scanned in parallel. A folder with 100 repos typically reports in well
 ## Development
 
 ```bash
-git clone https://github.com/your-name/reporadar
+git clone https://github.com/yvichyi/reporadar
 cd reporadar
 python -m unittest discover -s tests -v   # 18 tests, no network needed
 ```

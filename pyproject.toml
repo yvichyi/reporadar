@@ -22,7 +22,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-name/reporadar"
+Homepage = "https://github.com/yvichyi/reporadar"
 
 [project.scripts]
 reporadar = "reporadar.cli:main"

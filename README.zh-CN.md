@@ -29,7 +29,7 @@ data-pipeline  main        ✓ clean      no upstream  2y ago       —
 ```bash
 pip install reporadar        # 发布后
 # 或直接从 GitHub 安装：
-pip install git+https://github.com/your-name/reporadar
+pip install git+https://github.com/yvichyi/reporadar
 ```
 
 需要 Python 3.10+ 和 PATH 里的 `git`。除此之外**零依赖**——纯标准库实现。
@@ -85,7 +85,7 @@ reporadar 刻意保持**只读**：它只会运行 `git status`、`git log`、`g
 ## 开发
 
 ```bash
-git clone https://github.com/your-name/reporadar
+git clone https://github.com/yvichyi/reporadar
 cd reporadar
 python -m unittest discover -s tests -v   # 18 个测试，无需联网
 ```
