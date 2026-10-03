@@ -94,16 +94,12 @@ def inspect_repo(path: Path) -> RepoStatus:
         elif line and not line.startswith("#"):
             st.changed += 1
 
-    rc, out = _run_git(["log", "-1", "--format=%cI%x1f%s"], path)
+    rc, out = _run_git(["log", "-1", "--format=%ct%x1f%s"], path)
     if rc == 0 and "\x1f" in out:
         ts_raw, subject = out.split("\x1f", 1)
         st.last_commit_subject = subject.strip()
         try:
-            from datetime import datetime, timezone
-            dt = datetime.fromisoformat(ts_raw.strip())
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            st.last_commit_ts = dt.timestamp()
+            st.last_commit_ts = float(ts_raw.strip())
         except ValueError:
             pass
     # else: brand-new repo with no commits yet — leave ts as None.
