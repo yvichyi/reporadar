@@ -57,6 +57,20 @@ reporadar --json             # machine-readable output
 reporadar --dirty --json     # "do I have uncommitted work?" as an exit-quality check
 ```
 
+### For coding agents
+
+`reporadar --agent` emits a **versioned protocol** instead of a loose JSON array. The existing `--json` output stays unchanged for compatibility.
+
+```json
+{
+  "schema_version": "reporadar.agent/v1",
+  "summary": {"total": 3, "ready": 1, "review": 1, "blocked": 1},
+  "repositories": [{"name": "web-app", "agent": {"state": "review", "signals": ["dirty_worktree", "ahead_of_upstream"]}}]
+}
+```
+
+States are deliberately conservative: `blocked` for scan errors or merge conflicts, `review` for conditions an agent should inspect first, and `ready` only for a clean synced working copy with no stash. The protocol is read-only, just like the rest of reporadar.
+
 ### Odds and ends
 
 ```bash

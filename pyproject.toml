@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "reporadar"
-version = "0.1.0"
+version = "0.2.0"
 description = "One command to see the state of every git repository on your machine."
 readme = "README.md"
 license = { text = "MIT" }

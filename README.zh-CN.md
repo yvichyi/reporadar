@@ -93,3 +93,18 @@ python -m unittest discover -s tests -v   # 18 个测试，无需联网
 ## 许可
 
 [MIT](LICENSE)
+
+
+### 给编码 Agent 使用
+
+`reporadar --agent` 会输出一个**带版本号的稳定协议**，而不是让 Agent 自己猜一组松散字段的含义。原有 `--json` 数组格式保持不变，兼容已有脚本。
+
+```json
+{
+  "schema_version": "reporadar.agent/v1",
+  "summary": {"total": 3, "ready": 1, "review": 1, "blocked": 1},
+  "repositories": [{"name": "web-app", "agent": {"state": "review", "signals": ["dirty_worktree", "ahead_of_upstream"]}}]
+}
+```
+
+状态刻意偏保守：扫描错误或合并冲突为 `blocked`；需要 Agent 先检查的情况为 `review`；只有工作区干净、与上游同步且没有 stash 时才是 `ready`。协议仍然完全只读。

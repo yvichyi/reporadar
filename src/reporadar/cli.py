@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .agent import build_agent_report
 from .model import RepoStatus
 from .report import enable_windows_vt, render
 from .scanner import scan
@@ -32,8 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help="only show repositories with commits not pushed upstream")
     parser.add_argument("--stale", type=float, metavar="DAYS", default=None,
                         help="only show repositories whose last commit is older than DAYS")
-    parser.add_argument("--json", action="store_true", dest="as_json",
-                        help="emit machine-readable JSON instead of a table")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--json", action="store_true", dest="as_json",
+                        help="emit legacy machine-readable JSON array instead of a table")
+    output.add_argument("--agent", action="store_true", dest="as_agent",
+                        help="emit versioned agent protocol JSON with state signals and summary")
     parser.add_argument("--workers", type=int, default=None,
                         help="parallel git workers (default: auto)")
     parser.add_argument("--no-color", action="store_true",
@@ -81,6 +85,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.as_json:
         json.dump([r.to_dict() for r in repos], sys.stdout, indent=2, ensure_ascii=False)
+        sys.stdout.write("\n")
+        return 0
+
+    if args.as_agent:
+        json.dump(build_agent_report(repos), sys.stdout, indent=2, ensure_ascii=False)
         sys.stdout.write("\n")
         return 0
 
