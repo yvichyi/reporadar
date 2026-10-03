@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "reporadar"
-version = "0.2.0"
+version = "0.3.0"
 description = "One command to see the state of every git repository on your machine."
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.9"
-keywords = ["git", "cli", "dashboard", "developer-tools", "productivity"]
+requires-python = ">=3.10"
+keywords = ["git", "cli", "dashboard", "developer-tools", "productivity", "agents", "mcp"]
 authors = [{ name = "reporadar contributors" }]
 classifiers = [
     "Environment :: Console",
@@ -21,11 +21,15 @@ classifiers = [
     "Topic :: Software Development :: Version Control :: Git",
 ]
 
+[project.optional-dependencies]
+mcp = ["mcp>=2,<3"]
+
 [project.urls]
 Homepage = "https://github.com/yvichyi/reporadar"
 
 [project.scripts]
 reporadar = "reporadar.cli:main"
+reporadar-mcp = "reporadar.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/reporadar"]

@@ -30,6 +30,9 @@ data-pipeline  main        ✓ clean      no upstream  2y ago       —
 pip install reporadar        # once published
 # or straight from git:
 pip install git+https://github.com/yvichyi/reporadar
+
+# optional MCP v2 adapter (Python 3.10+)
+pip install "reporadar[mcp]"
 ```
 
 Requires Python 3.10+ and `git` on your PATH. No other dependencies — pure standard library.
@@ -69,7 +72,21 @@ reporadar --dirty --json     # "do I have uncommitted work?" as an exit-quality 
 }
 ```
 
-States are deliberately conservative: `blocked` for scan errors or merge conflicts, `review` for conditions an agent should inspect first, and `ready` only for a clean synced working copy with no stash. The protocol is read-only, just like the rest of reporadar.
+States are deliberately conservative: `blocked` for scan errors or merge conflicts, `review` for conditions an agent should inspect first, and `ready` only for a clean synced working copy with no stash.
+
+For MCP hosts, install the optional adapter and launch it as a local stdio server:
+
+```bash
+pip install "reporadar[mcp]"
+reporadar-mcp
+```
+
+It exposes two read-only tools:
+
+- `repository_preflight(path=".")` — inspect one repository root before an agent modifies it.
+- `scan_repositories(paths=None, max_depth=4)` — inspect a directory tree or several trees.
+
+The MCP layer delegates to the same `reporadar.agent/v1` protocol. The core package stays dependency-free; only the optional MCP extra installs the official MCP Python SDK.
 
 ### Odds and ends
 

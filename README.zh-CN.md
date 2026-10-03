@@ -30,6 +30,9 @@ data-pipeline  main        ✓ clean      no upstream  2y ago       —
 pip install reporadar        # 发布后
 # 或直接从 GitHub 安装：
 pip install git+https://github.com/yvichyi/reporadar
+
+# 可选：MCP v2 适配层（Python 3.10+）
+pip install "reporadar[mcp]"
 ```
 
 需要 Python 3.10+ 和 PATH 里的 `git`。除此之外**零依赖**——纯标准库实现。
@@ -56,6 +59,34 @@ reporadar --sort name        # 按名称排序（默认按最近活跃）
 reporadar --json             # 机器可读输出
 reporadar --dirty --json     # "有没有没提交的工作？"一查便知
 ```
+
+### 给编码 Agent 使用
+
+`reporadar --agent` 输出**带版本号的稳定协议**，原有 `--json` 数组格式保持不变。
+
+```json
+{
+  "schema_version": "reporadar.agent/v1",
+  "summary": {"total": 3, "ready": 1, "review": 1, "blocked": 1},
+  "repositories": [{"name": "web-app", "agent": {"state": "review", "signals": ["dirty_worktree", "ahead_of_upstream"]}}]
+}
+```
+
+状态刻意偏保守：扫描错误或合并冲突为 `blocked`；需要 Agent 先检查的情况为 `review`；只有工作区干净、与上游同步且没有 stash 时才是 `ready`。
+
+给 MCP 宿主使用时，安装可选适配层并以本地 stdio server 启动：
+
+```bash
+pip install "reporadar[mcp]"
+reporadar-mcp
+```
+
+它暴露两个只读工具：
+
+- `repository_preflight(path=".")`：Agent 修改仓库前检查单个仓库根目录。
+- `scan_repositories(paths=None, max_depth=4)`：一次检查一个或多个目录树。
+
+MCP 层只负责适配，底层仍复用 `reporadar.agent/v1`。核心包继续保持零依赖，只有可选 MCP extra 会安装官方 Python SDK。
 
 ### 其他
 
@@ -93,18 +124,3 @@ python -m unittest discover -s tests -v   # 18 个测试，无需联网
 ## 许可
 
 [MIT](LICENSE)
-
-
-### 给编码 Agent 使用
-
-`reporadar --agent` 会输出一个**带版本号的稳定协议**，而不是让 Agent 自己猜一组松散字段的含义。原有 `--json` 数组格式保持不变，兼容已有脚本。
-
-```json
-{
-  "schema_version": "reporadar.agent/v1",
-  "summary": {"total": 3, "ready": 1, "review": 1, "blocked": 1},
-  "repositories": [{"name": "web-app", "agent": {"state": "review", "signals": ["dirty_worktree", "ahead_of_upstream"]}}]
-}
-```
-
-状态刻意偏保守：扫描错误或合并冲突为 `blocked`；需要 Agent 先检查的情况为 `review`；只有工作区干净、与上游同步且没有 stash 时才是 `ready`。协议仍然完全只读。
