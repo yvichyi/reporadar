@@ -1,7 +1,4 @@
-"""Tests for reporadar's scanner, report, and CLI.
-
-Run with:  python -m unittest discover -s tests -v
-"""
+"""Tests for reporadar's scanner, report, and CLI."""
 
 from __future__ import annotations
 
@@ -16,10 +13,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from reporadar.cli import main  # noqa: E402
-from reporadar.model import RepoStatus  # noqa: E402
-from reporadar.report import relative_time, render  # noqa: E402
-from reporadar.scanner import find_repos, inspect_repo, scan  # noqa: E402
+from reporadar_local.cli import main  # noqa: E402
+from reporadar_local.model import RepoStatus  # noqa: E402
+from reporadar_local.report import relative_time, render  # noqa: E402
+from reporadar_local.scanner import find_repos, inspect_repo, scan  # noqa: E402
 
 
 def sh(*args: str, cwd: Path | None = None) -> str:
@@ -63,15 +60,12 @@ class TestFindRepos(Base):
     def test_finds_nested_repos(self) -> None:
         self.make_repo("projects/alpha")
         self.make_repo("projects/sub/beta")
-        found = find_repos([self.tmp])
-        names = {p.name for p in found}
-        self.assertEqual(names, {"alpha", "beta"})
+        self.assertEqual({p.name for p in find_repos([self.tmp])}, {"alpha", "beta"})
 
     def test_skips_junk_dirs(self) -> None:
         self.make_repo("code/real-project")
         self.make_repo("code/node_modules/fake-project")
-        found = find_repos([self.tmp])
-        self.assertEqual([p.name for p in found], ["real-project"])
+        self.assertEqual([p.name for p in find_repos([self.tmp])], ["real-project"])
 
     def test_depth_limit(self) -> None:
         self.make_repo("a/b/c/d/e/too-deep")
@@ -91,12 +85,15 @@ class TestInspectRepo(Base):
         self.assertFalse(st.is_dirty)
         self.assertEqual(st.changed, 0)
         self.assertIsNotNone(st.last_commit_ts)
+        self.assertIsNotNone(st.head_oid)
+        self.assertIsNotNone(st.status_fingerprint)
         self.assertEqual(st.stashes, 0)
 
     def test_empty_repo_has_no_commits(self) -> None:
         repo = self.make_repo("fresh", with_commit=False)
         st = inspect_repo(repo)
         self.assertIsNone(st.last_commit_ts)
+        self.assertIsNone(st.head_oid)
         self.assertFalse(st.is_dirty)
 
     def test_dirty_counts_untracked_and_modified(self) -> None:
@@ -105,6 +102,8 @@ class TestInspectRepo(Base):
         (repo / "README.md").write_text("# changed\n", encoding="utf-8")
         st = inspect_repo(repo)
         self.assertEqual(st.changed, 2)
+        self.assertEqual(st.untracked, 1)
+        self.assertEqual(st.unstaged, 1)
         self.assertTrue(st.is_dirty)
 
     def test_ahead_and_behind(self) -> None:
@@ -120,9 +119,6 @@ class TestInspectRepo(Base):
         self.assertEqual(st.ahead, 1)
         self.assertEqual(st.behind, 0)
         sh("git", "push", cwd=repo)
-
-        # Simulate falling behind: move local main back one commit while
-        # origin/main keeps the newest one.
         sh("git", "reset", "--hard", "HEAD~1", cwd=repo)
         st = inspect_repo(repo)
         self.assertEqual(st.ahead, 0)
@@ -135,12 +131,12 @@ class TestInspectRepo(Base):
         sh("git", "stash", cwd=repo)
         st = inspect_repo(repo)
         self.assertEqual(st.stashes, 1)
+        self.assertIsNotNone(st.stash_fingerprint)
 
     def test_detached_head(self) -> None:
         repo = self.make_repo("detached")
         sh("git", "checkout", "--detach", "HEAD", cwd=repo)
-        st = inspect_repo(repo)
-        self.assertEqual(st.branch, "(detached)")
+        self.assertEqual(inspect_repo(repo).branch, "(detached)")
 
 
 class TestScan(Base):
@@ -154,7 +150,6 @@ class TestScan(Base):
 
 class TestReport(unittest.TestCase):
     def test_relative_time(self) -> None:
-        import time as _t
         now = 1_800_000_000.0
         self.assertEqual(relative_time(None), "no commits")
         self.assertEqual(relative_time(now - 30, now), "just now")
@@ -162,7 +157,6 @@ class TestReport(unittest.TestCase):
         self.assertEqual(relative_time(now - 7200, now), "2h ago")
         self.assertEqual(relative_time(now - 3 * 86400, now), "3d ago")
         self.assertEqual(relative_time(now - 90 * 86400, now), "3mo ago")
-        _t.timezone  # silence linters; relative_time takes absolute epochs
 
     def test_render_plain_has_all_columns(self) -> None:
         repo = RepoStatus(path=Path("/tmp/demo"), branch="main", upstream="origin/main",
@@ -171,12 +165,11 @@ class TestReport(unittest.TestCase):
         for header in ("REPO", "BRANCH", "STATUS", "SYNC", "LAST COMMIT", "STASH"):
             self.assertIn(header, text)
         self.assertIn("3 changes", text)
-        self.assertIn("1 repo", text)  # summary line (singular for a single repo)
+        self.assertIn("1 repo", text)
 
     def test_render_empty_conflict_wording(self) -> None:
         repo = RepoStatus(path=Path("/tmp/c"), conflicted=2)
-        text = render([repo], color=False, ascii_only=True)
-        self.assertIn("2 conflicts", text)
+        self.assertIn("2 conflicts", render([repo], color=False, ascii_only=True))
 
 
 class TestCLI(Base):
@@ -208,6 +201,10 @@ class TestCLI(Base):
         _code, out = self.run_cli("--dirty")
         self.assertIn("dirty-one", out)
         self.assertNotIn("clean-one", out)
+
+    def test_negative_depth_is_usage_error(self) -> None:
+        code = main([str(self.tmp), "--depth", "-1"])
+        self.assertEqual(code, 2)
 
     def test_no_repos_exit_code(self) -> None:
         code, out = self.run_cli()

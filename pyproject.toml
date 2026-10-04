@@ -3,29 +3,40 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "reporadar"
-version = "0.1.0"
-description = "One command to see the state of every git repository on your machine."
+name = "reporadar-local"
+version = "0.4.0"
+description = "Read-only local Git repository radar and preflight sensor for coding agents."
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.9"
-keywords = ["git", "cli", "dashboard", "developer-tools", "productivity"]
+requires-python = ">=3.10"
+keywords = ["git", "cli", "developer-tools", "agents", "mcp", "preflight"]
 authors = [{ name = "reporadar contributors" }]
 classifiers = [
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Version Control :: Git",
 ]
 
+[project.optional-dependencies]
+mcp = ["mcp>=2,<3"]
+
 [project.urls]
 Homepage = "https://github.com/yvichyi/reporadar"
+Repository = "https://github.com/yvichyi/reporadar"
 
 [project.scripts]
-reporadar = "reporadar.cli:main"
+reporadar = "reporadar_local.cli:main"
+reporadar-mcp = "reporadar_local.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/reporadar"]
+packages = ["src/reporadar_local"]

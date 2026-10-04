@@ -1,95 +1,91 @@
 # reporadar
 
-**一条命令，看清你电脑上所有 Git 仓库的状态。**
+**一条命令看清本机所有 Git 仓库，同时给编码 Agent 一层真正只读的 Preflight 传感器。**
 
-你有一个 `projects` 文件夹，里面躺着几十个仓库。哪些有没提交的改动？哪些提交了却忘了 push？哪个是八个月前的试验品？
+> 发布包名：`reporadar-local` · CLI：`reporadar` · Python 包：`reporadar_local`
 
-`reporadar` 一条命令全部告诉你——快速、彩色、零依赖。
-
-```text
-REPO           BRANCH      STATUS       SYNC         LAST COMMIT  STASH
--------------  ----------  -----------  -----------  -----------  -----
-gamma          main        ✓ clean      ⇡2           just now     —
-legacy-tool    (detached)  ✓ clean      —            just now     —
-web-app        main        ✓ clean      ⇣1           just now     ⚑1
-beta           main        ● 3 changes  no upstream  just now     —
-alpha          main        ✓ clean      ✓ synced     just now     —
-data-pipeline  main        ✓ clean      no upstream  2y ago       —
-
-6 repos · 1 dirty · 1 unpushed · 1 stashed
-```
-
-- **✓ / ● / ✗** — 干净 / 有改动 / 有未解决的冲突
-- **⇡2** — 有 2 个提交还没 push · **⇣1** — 落后远程 1 个提交
-- **⚑1** — 有 1 个 stash 挂着
-- **2y ago** — 这个仓库最后一次提交是什么时候
+发布包名和 Python 命名空间刻意避开了生态里已经存在的 RepoRadar 项目；CLI 与协议名称继续保持简短稳定。
 
 ## 安装
 
+在正式发布 PyPI 之前，从 GitHub 安装：
+
 ```bash
-pip install reporadar        # 发布后
-# 或直接从 GitHub 安装：
 pip install git+https://github.com/yvichyi/reporadar
 ```
 
-需要 Python 3.10+ 和 PATH 里的 `git`。除此之外**零依赖**——纯标准库实现。
-
-## 使用
+使用 MCP：
 
 ```bash
-reporadar                    # 扫描当前目录
-reporadar ~/projects ~/work  # 同时扫描多个目录
+git clone https://github.com/yvichyi/reporadar
+cd reporadar
+pip install '.[mcp]'
+reporadar-mcp
 ```
 
-### 只看要紧的
+需要 Python 3.10+ 与 Git。核心包仍然零运行时依赖。
+
+## 给人看的 CLI
 
 ```bash
-reporadar --dirty            # 只看有未提交改动的仓库
-reporadar --ahead            # 只看有未 push 提交的仓库
-reporadar --stale 90         # 只看 90 天没动过的仓库
-reporadar --sort name        # 按名称排序（默认按最近活跃）
+reporadar
+reporadar ~/projects ~/work
+reporadar --dirty
+reporadar --ahead
+reporadar --stale 90
+reporadar --json
 ```
 
-### 给脚本和 CI 用
+终端表格继续保持快速、跨平台、完全只读。
+
+## Agent 观察协议
+
+`reporadar --agent` 输出 `reporadar.agent/v1`，包括：
+
+- 通用 `ready / review / blocked` 信号；
+- 最多 200 条具体变更路径；
+- 暂存、未暂存、未跟踪、冲突计数；
+- HEAD 标识与 Git status / stash 结构指纹；
+- 分支同步、stash、最近提交信息。
+
+旧 `--json` 字段集合保持不变。
+
+## Agent Preflight
 
 ```bash
-reporadar --json             # 机器可读输出
-reporadar --dirty --json     # "有没有没提交的工作？"一查便知
+reporadar --preflight read
+reporadar --preflight modify
+reporadar --preflight commit
+reporadar --preflight publish
 ```
 
-### 其他
+`reporadar.preflight/v1` 会给出 `allow`、`review` 或 `block`，同时解释原因与建议动作。对用户本地改动、冲突、detached HEAD、分支分叉、stash 与发布风险采取保守策略。
 
-```bash
-reporadar --depth 6          # 搜得更深（默认 4 层）
-reporadar --ascii            # 纯 ASCII 符号，兼容老终端
-reporadar --no-color         # 无色输出，适合写日志
-```
+完整协议见 [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md)。
 
-退出码：`0` 正常 · `1` 没找到仓库 · `2` 参数错误。
+## MCP
 
-## 为什么选 reporadar？
+stdio server 暴露：
 
-| | reporadar | gita | 手写脚本 |
-|---|---|---|---|
-| 只读（绝不碰你的仓库） | ✓ | 可执行 push/pull | 看手气 |
-| 依赖 | **零** | 若干 | — |
-| 未 push / 落后 / stash 一屏尽览 | ✓ | 部分 | 自己造轮子 |
-| 跨平台（Windows/macOS/Linux） | ✓ | ✓ | 写到吐血 |
+- `repository_preflight(path=".", intent="modify")`
+- `scan_repositories(paths=None, max_depth=4)`
 
-reporadar 刻意保持**只读**：它只会运行 `git status`、`git log`、`git stash list`，绝不会弄丢你的工作。
+两个工具都会声明 MCP `read_only_hint=true` 与 `open_world_hint=false`。MCP 只是插头，零依赖 scanner 与版本化协议才是事实源。
 
-## 性能
+## 只读保证
 
-仓库并行扫描。100 个仓库的目录通常一秒内出结果——瓶颈只在启动 `git` 进程，而 reporadar 已把每个仓库的 git 调用压到最少。
+reporadar 只观察仓库状态。它不会运行 push、pull、reset、checkout、stash 修改、commit、add 或任何其他 Git 写操作。
 
 ## 开发
 
 ```bash
 git clone https://github.com/yvichyi/reporadar
 cd reporadar
-python -m unittest discover -s tests -v   # 18 个测试，无需联网
+python -m unittest discover -s tests -v
 ```
+
+CI 覆盖 Python 3.10、3.12、3.14，分别验证纯核心与官方 MCP SDK，并额外构建 wheel 后在源码目录外安装冒烟测试。
 
 ## 许可
 
-[MIT](LICENSE)
+MIT
