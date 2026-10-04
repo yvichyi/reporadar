@@ -22,6 +22,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install core
         run: python -m pip install -e .
+      - name: Validate environment
+        run: |
+          python -m pip check
+          reporadar --version
+          python -c "import reporadar_local"
       - name: Compile
         run: python -m compileall -q src tests
       - name: Run tests
@@ -40,5 +45,23 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install MCP adapter
         run: python -m pip install -e '.[mcp]'
+      - name: Validate dependencies
+        run: python -m pip check
       - name: Run tests with official MCP SDK
         run: python -m unittest discover -s tests -v
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Build wheel
+        run: python -m pip wheel . --no-deps --wheel-dir dist
+      - name: Install wheel outside source tree
+        run: |
+          python -m pip install --force-reinstall dist/reporadar_local-*.whl
+          cd /tmp
+          reporadar --version
+          python -c "import reporadar_local; print(reporadar_local.__version__)"

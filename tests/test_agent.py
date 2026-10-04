@@ -11,9 +11,9 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from reporadar.agent import SCHEMA_VERSION, build_agent_report, classify_repo
-from reporadar.cli import main
-from reporadar.model import RepoStatus
+from reporadar_local.agent import SCHEMA_VERSION, build_agent_report, classify_repo
+from reporadar_local.cli import main
+from reporadar_local.model import RepoStatus
 
 
 class TestAgentProtocol(unittest.TestCase):

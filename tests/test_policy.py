@@ -10,11 +10,11 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from reporadar.agent import repo_payload
-from reporadar.cli import main
-from reporadar.model import RepoStatus
-from reporadar.policy import build_preflight_report, evaluate_repo
-from reporadar.scanner import inspect_repo
+from reporadar_local.agent import repo_payload
+from reporadar_local.cli import main
+from reporadar_local.model import RepoStatus
+from reporadar_local.policy import build_preflight_report, evaluate_repo
+from reporadar_local.scanner import inspect_repo
 
 
 def git(*args: str, cwd: Path) -> None:
@@ -96,7 +96,7 @@ class TestPolicy(unittest.TestCase):
             RepoStatus(path=Path("/tmp/c"), branch="main", error="boom"),
         ]
         report = build_preflight_report(repos, "modify", "2026-10-04T00:00:00Z")
-        self.assertEqual(report["schema_version"], "reporadar.preflight/v1")
+        self.assertEqual(report["schema_version"], "reporadar_local.preflight/v1")
         self.assertEqual(report["summary"], {"total": 3, "allow": 1, "review": 1, "block": 1})
 
     def test_cli_preflight(self) -> None:
@@ -109,7 +109,7 @@ class TestPolicy(unittest.TestCase):
                 code = main([str(repo), "--preflight", "modify", "--depth", "0"])
             data = json.loads(buf.getvalue())
             self.assertEqual(code, 0)
-            self.assertEqual(data["schema_version"], "reporadar.preflight/v1")
+            self.assertEqual(data["schema_version"], "reporadar_local.preflight/v1")
             self.assertEqual(data["summary"]["total"], 1)
 
 

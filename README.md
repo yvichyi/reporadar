@@ -1,22 +1,26 @@
 # reporadar
 
-**One command to see the state of every Git repository on your machine, with a read-only sensor layer for coding agents.**
+**One command to see the state of every Git repository on your machine, plus a read-only preflight sensor for coding agents.**
 
-```text
-REPO           BRANCH      STATUS       SYNC         LAST COMMIT  STASH
--------------  ----------  -----------  -----------  -----------  -----
-web-app        main        ● 3 changes  ⇡2           4m ago       ⚑1
-alpha          main        ✓ clean      ✓ synced     2h ago       —
-legacy-tool    (detached)  ✓ clean      —            8mo ago      —
-```
+> Distribution name: `reporadar-local` · CLI: `reporadar` · Python package: `reporadar_local`
+
+The distribution and import names are intentionally distinct from other projects already using the RepoRadar name. The CLI and protocol names stay short and stable.
 
 ## Install
 
-```bash
-pip install reporadar
+Until a PyPI release is published, install from GitHub:
 
-# optional MCP v2 adapter
-pip install "reporadar[mcp]"
+```bash
+pip install git+https://github.com/yvichyi/reporadar
+```
+
+For MCP:
+
+```bash
+git clone https://github.com/yvichyi/reporadar
+cd reporadar
+pip install '.[mcp]'
+reporadar-mcp
 ```
 
 Python 3.10+ and Git are required. The core package has zero runtime dependencies.
@@ -32,23 +36,21 @@ reporadar --stale 90
 reporadar --json
 ```
 
-The table remains fast, colored, cross-platform, and completely read-only.
+The human table remains fast, colored, cross-platform, and read-only.
 
 ## Agent observation
 
-`reporadar --agent` emits the versioned `reporadar.agent/v1` protocol. It includes:
+`reporadar --agent` emits `reporadar.agent/v1` with:
 
 - generic `ready / review / blocked` signals;
-- exact changed paths, capped at 200 entries;
+- exact changed paths, capped at 200;
 - staged, unstaged, untracked, and conflicted counts;
 - HEAD identity and structural Git-status/stash fingerprints;
 - branch sync, stash, and last-commit metadata.
 
-The old `--json` shape remains unchanged for compatibility.
+The legacy `--json` key set is preserved.
 
-## Agent preflight policy
-
-Observation and policy are intentionally separate. Tell reporadar what the agent plans to do:
+## Agent preflight
 
 ```bash
 reporadar --preflight read
@@ -57,29 +59,22 @@ reporadar --preflight commit
 reporadar --preflight publish
 ```
 
-Preflight emits `reporadar.preflight/v1` with an `allow`, `review`, or `block` decision, explicit reasons, and recommended actions. It is deliberately conservative around user-owned local work, conflicts, detached HEADs, branch divergence, stashes, and publish risk.
+`reporadar.preflight/v1` returns `allow`, `review`, or `block` with explicit reasons and recommended actions. Policy is deliberately conservative around user-owned local work, conflicts, detached HEADs, divergence, stashes, and publish risk.
 
-See [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md) for schema and compatibility guarantees.
+See [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md).
 
 ## MCP
 
-```bash
-pip install "reporadar[mcp]"
-reporadar-mcp
-```
+The stdio server exposes:
 
-The stdio server exposes two tools:
+- `repository_preflight(path=".", intent="modify")`
+- `scan_repositories(paths=None, max_depth=4)`
 
-- `repository_preflight(path=".", intent="modify")`: inspect one repository and apply an intent-aware safety policy.
-- `scan_repositories(paths=None, max_depth=4)`: observe one or more directory trees using `agent/v1`.
+Both tools declare MCP `read_only_hint=true` and `open_world_hint=false`. MCP is only an adapter. The dependency-free scanner and versioned protocols remain the source of truth.
 
-Both are explicitly annotated as read-only and closed-world for MCP clients. MCP is only an adapter; the dependency-free scanner and versioned protocols remain the source of truth.
+## Read-only guarantee
 
-## Why this exists
-
-Coding agents should not infer repository safety from a pretty terminal table or silently assume a clean workspace. reporadar gives them a small, deterministic sensor surface before they touch code.
-
-It never runs push, pull, reset, checkout, stash mutation, or any other write operation.
+reporadar only observes repository state. It never runs push, pull, reset, checkout, stash mutation, commit, add, or any other Git write operation.
 
 ## Development
 
@@ -89,7 +84,7 @@ cd reporadar
 python -m unittest discover -s tests -v
 ```
 
-CI covers the oldest supported Python plus newer runtimes, with and without the official MCP SDK.
+CI tests Python 3.10, 3.12, and 3.14 with and without the official MCP SDK, then builds and installs the wheel in a clean working directory.
 
 ## License
 
