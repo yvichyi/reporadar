@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .agent import build_agent_report, repo_payload
+from .agent import build_agent_report
+from .policy import evaluate_repo
 from .scanner import inspect_repo, scan
 
 
@@ -23,47 +24,48 @@ def scan_paths_for_agent(
     max_depth: int = 4,
     workers: int | None = None,
 ) -> dict[str, object]:
-    """Scan repository roots and return the stable reporadar agent envelope."""
     if max_depth < 0:
         raise ValueError("max_depth must be >= 0")
-    repos = scan(_roots(paths), max_depth=max_depth, workers=workers)
-    return build_agent_report(repos)
+    return build_agent_report(scan(_roots(paths), max_depth=max_depth, workers=workers))
 
 
-def preflight_path(path: str = ".") -> dict[str, object]:
-    """Inspect one repository root before an agent modifies it."""
+def preflight_path(path: str = ".", intent: str = "modify") -> dict[str, object]:
     root = Path(path).expanduser().resolve()
     if not root.is_dir():
         raise ValueError(f"not a directory: {root}")
     if not (root / ".git").exists():
         raise ValueError(f"not a git repository root: {root}")
-    return repo_payload(inspect_repo(root))
+    return evaluate_repo(inspect_repo(root), intent=intent)
 
 
 def create_server() -> Any:
-    """Create the optional MCP v2 server without adding a core dependency."""
     try:
         from mcp.server import MCPServer
+        from mcp.types import ToolAnnotations
     except ImportError as exc:
         raise RuntimeError(
             'MCP support is optional. Install it with: pip install "reporadar[mcp]"'
         ) from exc
 
+    read_only = ToolAnnotations(read_only_hint=True, open_world_hint=False)
     mcp = MCPServer(
         "reporadar",
         instructions=(
             "Read-only Git repository state for coding agents. "
-            "Use repository_preflight before modifying a repository, and "
-            "scan_repositories to inspect multiple working copies."
+            "Use repository_preflight before modifying, committing, or publishing, "
+            "and scan_repositories to inspect multiple working copies."
         ),
     )
 
-    @mcp.tool()
-    def repository_preflight(path: str = ".") -> dict[str, object]:
-        """Inspect one repository root and return explicit ready/review/blocked signals."""
-        return preflight_path(path)
+    @mcp.tool(title="Repository preflight", annotations=read_only)
+    def repository_preflight(
+        path: str = ".",
+        intent: str = "modify",
+    ) -> dict[str, object]:
+        """Inspect a repository and return allow/review/block with explicit reasons."""
+        return preflight_path(path, intent=intent)
 
-    @mcp.tool()
+    @mcp.tool(title="Scan repositories", annotations=read_only)
     def scan_repositories(
         paths: list[str] | None = None,
         max_depth: int = 4,
@@ -75,7 +77,6 @@ def create_server() -> Any:
 
 
 def main() -> int:
-    """Run the MCP server over stdio, the SDK's default local transport."""
     try:
         server = create_server()
     except RuntimeError as exc:

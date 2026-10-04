@@ -10,13 +10,7 @@ SCHEMA_VERSION = "reporadar.agent/v1"
 
 
 def classify_repo(repo: RepoStatus) -> dict[str, object]:
-    """Return a conservative agent-facing state and the signals behind it.
-
-    blocked means the repository should not be treated as a normal clean
-    working copy. review means an agent should inspect the listed signals
-    before making broad changes. ready is reserved for a clean, synced
-    working copy with no stash or scanner error.
-    """
+    """Return a conservative generic state and the signals behind it."""
     signals: list[str] = []
 
     if repo.error:
@@ -46,23 +40,30 @@ def classify_repo(repo: RepoStatus) -> dict[str, object]:
     if repo.stashes:
         signals.append("stashes_present")
 
-    return {
-        "state": "review" if signals else "ready",
-        "signals": signals,
-    }
+    return {"state": "review" if signals else "ready", "signals": signals}
 
 
 def repo_payload(repo: RepoStatus) -> dict[str, object]:
-    """Serialize one repository into the v1 agent protocol."""
+    """Serialize one repository into the additive-compatible v1 protocol."""
     return {
         "path": str(repo.path),
         "name": repo.name,
         "branch": repo.branch,
         "upstream": repo.upstream,
+        "snapshot": {
+            "head_oid": repo.head_oid,
+            "status_fingerprint": repo.status_fingerprint,
+            "stash_fingerprint": repo.stash_fingerprint,
+        },
         "working_tree": {
             "changed": repo.changed,
+            "staged": repo.staged,
+            "unstaged": repo.unstaged,
+            "untracked": repo.untracked,
             "conflicted": repo.conflicted,
             "dirty": repo.is_dirty,
+            "files": [change.to_dict() for change in repo.change_files],
+            "details_truncated": repo.change_details_truncated,
         },
         "sync": {
             "ahead": repo.ahead,
@@ -96,9 +97,6 @@ def build_agent_report(
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": generated_at,
-        "summary": {
-            "total": len(items),
-            **counts,
-        },
+        "summary": {"total": len(items), **counts},
         "repositories": items,
     }

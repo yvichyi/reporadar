@@ -1,126 +1,96 @@
 # reporadar
 
-**一条命令，看清你电脑上所有 Git 仓库的状态。**
-
-你有一个 `projects` 文件夹，里面躺着几十个仓库。哪些有没提交的改动？哪些提交了却忘了 push？哪个是八个月前的试验品？
-
-`reporadar` 一条命令全部告诉你——快速、彩色、零依赖。
+**一条命令看清本机所有 Git 仓库，也给编码 Agent 一层真正只读的环境传感器。**
 
 ```text
 REPO           BRANCH      STATUS       SYNC         LAST COMMIT  STASH
 -------------  ----------  -----------  -----------  -----------  -----
-gamma          main        ✓ clean      ⇡2           just now     —
-legacy-tool    (detached)  ✓ clean      —            just now     —
-web-app        main        ✓ clean      ⇣1           just now     ⚑1
-beta           main        ● 3 changes  no upstream  just now     —
-alpha          main        ✓ clean      ✓ synced     just now     —
-data-pipeline  main        ✓ clean      no upstream  2y ago       —
-
-6 repos · 1 dirty · 1 unpushed · 1 stashed
+web-app        main        ● 3 changes  ⇡2           4m ago       ⚑1
+alpha          main        ✓ clean      ✓ synced     2h ago       —
+legacy-tool    (detached)  ✓ clean      —            8mo ago      —
 ```
-
-- **✓ / ● / ✗** — 干净 / 有改动 / 有未解决的冲突
-- **⇡2** — 有 2 个提交还没 push · **⇣1** — 落后远程 1 个提交
-- **⚑1** — 有 1 个 stash 挂着
-- **2y ago** — 这个仓库最后一次提交是什么时候
 
 ## 安装
 
 ```bash
-pip install reporadar        # 发布后
-# 或直接从 GitHub 安装：
-pip install git+https://github.com/yvichyi/reporadar
+pip install reporadar
 
-# 可选：MCP v2 适配层（Python 3.10+）
+# 可选 MCP v2 适配层
 pip install "reporadar[mcp]"
 ```
 
-需要 Python 3.10+ 和 PATH 里的 `git`。除此之外**零依赖**——纯标准库实现。
+需要 Python 3.10+ 与 Git。核心包仍然零运行时依赖。
 
-## 使用
-
-```bash
-reporadar                    # 扫描当前目录
-reporadar ~/projects ~/work  # 同时扫描多个目录
-```
-
-### 只看要紧的
+## 给人看的 CLI
 
 ```bash
-reporadar --dirty            # 只看有未提交改动的仓库
-reporadar --ahead            # 只看有未 push 提交的仓库
-reporadar --stale 90         # 只看 90 天没动过的仓库
-reporadar --sort name        # 按名称排序（默认按最近活跃）
+reporadar
+reporadar ~/projects ~/work
+reporadar --dirty
+reporadar --ahead
+reporadar --stale 90
+reporadar --json
 ```
 
-### 给脚本和 CI 用
+表格输出继续保持快速、跨平台、完全只读。
+
+## Agent 观察协议
+
+`reporadar --agent` 输出版本化的 `reporadar.agent/v1`，现在包含：
+
+- 通用 `ready / review / blocked` 信号；
+- 最多 200 条具体变更路径；
+- 暂存、未暂存、未跟踪、冲突计数；
+- HEAD 标识与 Git status / stash 结构指纹；
+- 分支同步、stash、最近提交信息。
+
+旧 `--json` 字段集合保持不变。
+
+## Agent Preflight 策略
+
+“观察事实”和“是否适合行动”被刻意分开。告诉 reporadar Agent 准备做什么：
 
 ```bash
-reporadar --json             # 机器可读输出
-reporadar --dirty --json     # "有没有没提交的工作？"一查便知
+reporadar --preflight read
+reporadar --preflight modify
+reporadar --preflight commit
+reporadar --preflight publish
 ```
 
-### 给编码 Agent 使用
+它会输出 `reporadar.preflight/v1`，给出 `allow`、`review` 或 `block`，同时说明原因与建议动作。对用户本地改动、冲突、detached HEAD、分支分叉、stash 与发布风险采取保守策略。
 
-`reporadar --agent` 输出**带版本号的稳定协议**，原有 `--json` 数组格式保持不变。
+完整协议与兼容性保证见 [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md)。
 
-```json
-{
-  "schema_version": "reporadar.agent/v1",
-  "summary": {"total": 3, "ready": 1, "review": 1, "blocked": 1},
-  "repositories": [{"name": "web-app", "agent": {"state": "review", "signals": ["dirty_worktree", "ahead_of_upstream"]}}]
-}
-```
-
-状态刻意偏保守：扫描错误或合并冲突为 `blocked`；需要 Agent 先检查的情况为 `review`；只有工作区干净、与上游同步且没有 stash 时才是 `ready`。
-
-给 MCP 宿主使用时，安装可选适配层并以本地 stdio server 启动：
+## MCP
 
 ```bash
 pip install "reporadar[mcp]"
 reporadar-mcp
 ```
 
-它暴露两个只读工具：
+stdio server 暴露两个工具：
 
-- `repository_preflight(path=".")`：Agent 修改仓库前检查单个仓库根目录。
-- `scan_repositories(paths=None, max_depth=4)`：一次检查一个或多个目录树。
+- `repository_preflight(path=".", intent="modify")`：检查单仓库，并按意图执行安全策略。
+- `scan_repositories(paths=None, max_depth=4)`：用 `agent/v1` 观察一个或多个目录树。
 
-MCP 层只负责适配，底层仍复用 `reporadar.agent/v1`。核心包继续保持零依赖，只有可选 MCP extra 会安装官方 Python SDK。
+两个工具都会向 MCP 客户端声明只读、封闭世界。MCP 只是插头，零依赖 scanner 与版本化协议才是事实源。
 
-### 其他
+## 为什么要做这个
 
-```bash
-reporadar --depth 6          # 搜得更深（默认 4 层）
-reporadar --ascii            # 纯 ASCII 符号，兼容老终端
-reporadar --no-color         # 无色输出，适合写日志
-```
+编码 Agent 不应该从漂亮表格里猜仓库是否安全，也不应该默认工作区是干净的。reporadar 提供的是 Agent 动手前可重复、可解释的环境感知层。
 
-退出码：`0` 正常 · `1` 没找到仓库 · `2` 参数错误。
-
-## 为什么选 reporadar？
-
-| | reporadar | gita | 手写脚本 |
-|---|---|---|---|
-| 只读（绝不碰你的仓库） | ✓ | 可执行 push/pull | 看手气 |
-| 依赖 | **零** | 若干 | — |
-| 未 push / 落后 / stash 一屏尽览 | ✓ | 部分 | 自己造轮子 |
-| 跨平台（Windows/macOS/Linux） | ✓ | ✓ | 写到吐血 |
-
-reporadar 刻意保持**只读**：它只会运行 `git status`、`git log`、`git stash list`，绝不会弄丢你的工作。
-
-## 性能
-
-仓库并行扫描。100 个仓库的目录通常一秒内出结果——瓶颈只在启动 `git` 进程，而 reporadar 已把每个仓库的 git 调用压到最少。
+它不会执行 push、pull、reset、checkout、stash 修改或任何其他写操作。
 
 ## 开发
 
 ```bash
 git clone https://github.com/yvichyi/reporadar
 cd reporadar
-python -m unittest discover -s tests -v   # 18 个测试，无需联网
+python -m unittest discover -s tests -v
 ```
+
+CI 同时覆盖最低支持版本与较新的 Python，并分别验证纯核心与官方 MCP SDK。
 
 ## 许可
 
-[MIT](LICENSE)
+MIT

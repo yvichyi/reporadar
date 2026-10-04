@@ -1,126 +1,96 @@
 # reporadar
 
-**One command to see the state of every git repository on your machine.**
-
-You have a `projects` folder. It has forty repos in it. Which ones have uncommitted work? Which ones have commits you never pushed? Which one was that experiment from eight months ago?
-
-`reporadar` answers all of that in one command — fast, in color, with zero dependencies.
+**One command to see the state of every Git repository on your machine, with a read-only sensor layer for coding agents.**
 
 ```text
 REPO           BRANCH      STATUS       SYNC         LAST COMMIT  STASH
 -------------  ----------  -----------  -----------  -----------  -----
-gamma          main        ✓ clean      ⇡2           just now     —
-legacy-tool    (detached)  ✓ clean      —            just now     —
-web-app        main        ✓ clean      ⇣1           just now     ⚑1
-beta           main        ● 3 changes  no upstream  just now     —
-alpha          main        ✓ clean      ✓ synced     just now     —
-data-pipeline  main        ✓ clean      no upstream  2y ago       —
-
-6 repos · 1 dirty · 1 unpushed · 1 stashed
+web-app        main        ● 3 changes  ⇡2           4m ago       ⚑1
+alpha          main        ✓ clean      ✓ synced     2h ago       —
+legacy-tool    (detached)  ✓ clean      —            8mo ago      —
 ```
-
-- **✓ / ● / ✗** — clean, has changes, has unresolved conflicts
-- **⇡2** — 2 commits not pushed yet · **⇣1** — 1 commit behind upstream
-- **⚑1** — 1 stash waiting
-- **2y ago** — when this repo last saw a commit
 
 ## Install
 
 ```bash
-pip install reporadar        # once published
-# or straight from git:
-pip install git+https://github.com/yvichyi/reporadar
+pip install reporadar
 
-# optional MCP v2 adapter (Python 3.10+)
+# optional MCP v2 adapter
 pip install "reporadar[mcp]"
 ```
 
-Requires Python 3.10+ and `git` on your PATH. No other dependencies — pure standard library.
+Python 3.10+ and Git are required. The core package has zero runtime dependencies.
 
-## Usage
-
-```bash
-reporadar                    # scan the current directory
-reporadar ~/projects ~/work  # scan multiple roots, side by side
-```
-
-### Focus on what matters
+## Human CLI
 
 ```bash
-reporadar --dirty            # only repos with uncommitted changes
-reporadar --ahead            # only repos with unpushed commits
-reporadar --stale 90         # only repos untouched for 90+ days
-reporadar --sort name        # alphabetical (default: most recent activity)
+reporadar
+reporadar ~/projects ~/work
+reporadar --dirty
+reporadar --ahead
+reporadar --stale 90
+reporadar --json
 ```
 
-### For scripts and CI
+The table remains fast, colored, cross-platform, and completely read-only.
+
+## Agent observation
+
+`reporadar --agent` emits the versioned `reporadar.agent/v1` protocol. It includes:
+
+- generic `ready / review / blocked` signals;
+- exact changed paths, capped at 200 entries;
+- staged, unstaged, untracked, and conflicted counts;
+- HEAD identity and structural Git-status/stash fingerprints;
+- branch sync, stash, and last-commit metadata.
+
+The old `--json` shape remains unchanged for compatibility.
+
+## Agent preflight policy
+
+Observation and policy are intentionally separate. Tell reporadar what the agent plans to do:
 
 ```bash
-reporadar --json             # machine-readable output
-reporadar --dirty --json     # "do I have uncommitted work?" as an exit-quality check
+reporadar --preflight read
+reporadar --preflight modify
+reporadar --preflight commit
+reporadar --preflight publish
 ```
 
-### For coding agents
+Preflight emits `reporadar.preflight/v1` with an `allow`, `review`, or `block` decision, explicit reasons, and recommended actions. It is deliberately conservative around user-owned local work, conflicts, detached HEADs, branch divergence, stashes, and publish risk.
 
-`reporadar --agent` emits a **versioned protocol** instead of a loose JSON array. The existing `--json` output stays unchanged for compatibility.
+See [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md) for schema and compatibility guarantees.
 
-```json
-{
-  "schema_version": "reporadar.agent/v1",
-  "summary": {"total": 3, "ready": 1, "review": 1, "blocked": 1},
-  "repositories": [{"name": "web-app", "agent": {"state": "review", "signals": ["dirty_worktree", "ahead_of_upstream"]}}]
-}
-```
-
-States are deliberately conservative: `blocked` for scan errors or merge conflicts, `review` for conditions an agent should inspect first, and `ready` only for a clean synced working copy with no stash.
-
-For MCP hosts, install the optional adapter and launch it as a local stdio server:
+## MCP
 
 ```bash
 pip install "reporadar[mcp]"
 reporadar-mcp
 ```
 
-It exposes two read-only tools:
+The stdio server exposes two tools:
 
-- `repository_preflight(path=".")` — inspect one repository root before an agent modifies it.
-- `scan_repositories(paths=None, max_depth=4)` — inspect a directory tree or several trees.
+- `repository_preflight(path=".", intent="modify")`: inspect one repository and apply an intent-aware safety policy.
+- `scan_repositories(paths=None, max_depth=4)`: observe one or more directory trees using `agent/v1`.
 
-The MCP layer delegates to the same `reporadar.agent/v1` protocol. The core package stays dependency-free; only the optional MCP extra installs the official MCP Python SDK.
+Both are explicitly annotated as read-only and closed-world for MCP clients. MCP is only an adapter; the dependency-free scanner and versioned protocols remain the source of truth.
 
-### Odds and ends
+## Why this exists
 
-```bash
-reporadar --depth 6          # search deeper directory trees (default 4)
-reporadar --ascii            # pure-ASCII glyphs for legacy consoles
-reporadar --no-color         # plain output, e.g. for logs
-```
+Coding agents should not infer repository safety from a pretty terminal table or silently assume a clean workspace. reporadar gives them a small, deterministic sensor surface before they touch code.
 
-Exit codes: `0` fine · `1` nothing found · `2` bad arguments.
-
-## Why reporadar?
-
-| | reporadar | gita | multi-repo shell scripts |
-|---|---|---|---|
-| Read-only (never touches your repos) | ✓ | actions can push/pull | depends |
-| Dependencies | **zero** | several | — |
-| Unpushed / behind / stash at a glance | ✓ | partial | roll your own |
-| Works everywhere (Windows/macOS/Linux) | ✓ | ✓ | painful |
-
-reporadar is deliberately **read-only**: it only ever runs `git status`, `git log`, and `git stash list`. It can't lose your work.
-
-## How fast is it?
-
-Repos are scanned in parallel. A folder with 100 repos typically reports in well under a second — the bottleneck is spawning `git`, and reporadar spawns as few processes as possible per repo.
+It never runs push, pull, reset, checkout, stash mutation, or any other write operation.
 
 ## Development
 
 ```bash
 git clone https://github.com/yvichyi/reporadar
 cd reporadar
-python -m unittest discover -s tests -v   # 18 tests, no network needed
+python -m unittest discover -s tests -v
 ```
+
+CI covers the oldest supported Python plus newer runtimes, with and without the official MCP SDK.
 
 ## License
 
-[MIT](LICENSE)
+MIT
