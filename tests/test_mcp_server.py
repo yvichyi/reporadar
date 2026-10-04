@@ -30,7 +30,7 @@ class TestMCPAdapter(unittest.TestCase):
             repo.mkdir()
             init_repo(repo)
             payload = preflight_path(str(repo), intent="publish")
-            self.assertEqual(payload["schema_version"], "reporadar_local.preflight/v1")
+            self.assertEqual(payload["schema_version"], "reporadar.preflight/v1")
             self.assertEqual(payload["repository"]["name"], "demo")
             self.assertEqual(payload["decision"], "review")
             self.assertEqual(payload["reasons"][0]["signal"], "no_upstream")
@@ -41,7 +41,7 @@ class TestMCPAdapter(unittest.TestCase):
             repo.mkdir()
             init_repo(repo)
             report = scan_paths_for_agent([tmp], max_depth=2, workers=1)
-            self.assertEqual(report["schema_version"], "reporadar_local.agent/v1")
+            self.assertEqual(report["schema_version"], "reporadar.agent/v1")
             self.assertEqual(report["summary"]["total"], 1)
 
     def test_invalid_inputs_fail_loudly(self) -> None:
@@ -120,7 +120,7 @@ class TestMCPAdapter(unittest.TestCase):
                         {"path": str(repo), "intent": "publish"},
                     )
                     self.assertEqual(result.structured_content["schema_version"],
-                                     "reporadar_local.preflight/v1")
+                                     "reporadar.preflight/v1")
                     self.assertEqual(result.structured_content["repository"]["name"], "demo")
                     self.assertEqual(result.structured_content["decision"], "review")
 
